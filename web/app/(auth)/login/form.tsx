@@ -10,22 +10,52 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import Link from "next/link";
-import Image from "next/image";
-
 import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/auth";
+import { useRouter } from "next/navigation";
+import { CircleAlertIcon, Loader } from "lucide-react";
 
-export default function LoginPage() {
+export default function LoginForm() {
   const [server, setServer] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const { login, isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/");
+    }
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setServer(params.get("server") || "");
     setUsername(params.get("username") || "");
   }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      await login({ server, username, password });
+      router.push("/");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex w-full max-w-sm flex-col gap-4">
@@ -35,6 +65,7 @@ export default function LoginPage() {
       >
         <h1 className="font-alt text-3xl font-[600]">CTRL</h1>
       </Link>
+
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader className="text-center">
@@ -47,22 +78,29 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form>
+            <form onSubmit={handleSubmit}>
               <div className="grid gap-6">
+                {error && (
+                  <div className="bg-destructive/10 text-destructive text-sm text-left gap-1 px-4 py-3 flex items-center rounded-md">
+                    <CircleAlertIcon className="w-4 h-4 mr-2 shrink-0" />
+                    {error}
+                  </div>
+                )}
+
                 <div className="grid gap-6">
                   <div className="grid gap-3">
                     <Label htmlFor="server">Node Address</Label>
                     <Input
                       id="server"
                       type="text"
-                      placeholder="192.168.1.5"
+                      placeholder="192.168.1.5:5575 or https://node.example"
                       required
                       onChange={(e) => setServer(e.target.value)}
                       value={server}
                     />
                   </div>
                   <div className="grid gap-3">
-                    <Label htmlFor="email">Username</Label>
+                    <Label htmlFor="username">Username</Label>
                     <Input
                       id="username"
                       type="text"
@@ -91,14 +129,22 @@ export default function LoginPage() {
                       value={password}
                     />
                   </div>
-                  <Button type="submit" className="w-full">
-                    Login
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        Processing
+                        <Loader className="animate-spin" />
+                      </>
+                    ) : (
+                      "Login"
+                    )}
                   </Button>
                 </div>
               </div>
             </form>
           </CardContent>
         </Card>
+
         <div className="text-muted-foreground text-center text-xs text-balance">
           This website doesn't store or save any data. Every request is sent
           directly to your own node, and nothing is kept on our servers.

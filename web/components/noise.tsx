@@ -1,5 +1,11 @@
 "use client";
-import React, { useRef, useId, useEffect, CSSProperties } from "react";
+import React, {
+  useRef,
+  useId,
+  useEffect,
+  CSSProperties,
+  useCallback,
+} from "react";
 import {
   animate,
   useMotionValue,
@@ -33,25 +39,40 @@ export interface EtheralShadowProps {
   className?: string;
   children?: React.ReactNode;
 }
-function mapRange(
+
+const mapRange = (
   value: number,
   fromLow: number,
   fromHigh: number,
   toLow: number,
   toHigh: number
-): number {
-  if (fromLow === fromHigh) {
-    return toLow;
-  }
+): number => {
+  if (fromLow === fromHigh) return toLow;
   const percentage = (value - fromLow) / (fromHigh - fromLow);
   return toLow + percentage * (toHigh - toLow);
-}
+};
+
 const useInstanceId = (): string => {
   const id = useId();
   const cleanId = id.replace(/:/g, "");
-  const instanceId = `shadowoverlay-${cleanId}`;
-  return instanceId;
+  return `shadowoverlay-${cleanId}`;
 };
+
+const PRECALCULATED_VALUES = {
+  displacement: {
+    min: 20,
+    max: 100,
+  },
+  duration: {
+    min: 5000,
+    max: 30000,
+  },
+  frequency: {
+    x: { min: 0.001, max: 0.0005 },
+    y: { min: 0.004, max: 0.002 },
+  },
+};
+
 export function EtheralShadow({
   sizing = "fill",
   color = "rgba(96, 96, 96, 1)",
@@ -62,68 +83,183 @@ export function EtheralShadow({
   children,
 }: EtheralShadowProps) {
   const id = useInstanceId();
+
   const animationEnabled = animation && animation.scale > 0;
+
+  const { displacementScale, animationDuration, baseFrequencies } =
+    React.useMemo(() => {
+      if (!animation) {
+        return {
+          displacementScale: 0,
+          animationDuration: 1,
+          baseFrequencies: { x: 0, y: 0 },
+        };
+      }
+
+      return {
+        displacementScale: mapRange(
+          animation.scale,
+          1,
+          100,
+          PRECALCULATED_VALUES.displacement.min,
+          PRECALCULATED_VALUES.displacement.max
+        ),
+        animationDuration: mapRange(
+          animation.speed,
+          1,
+          100,
+          PRECALCULATED_VALUES.duration.max,
+          PRECALCULATED_VALUES.duration.min
+        ),
+        baseFrequencies: {
+          x: mapRange(
+            animation.scale,
+            0,
+            100,
+            PRECALCULATED_VALUES.frequency.x.min,
+            PRECALCULATED_VALUES.frequency.x.max
+          ),
+          y: mapRange(
+            animation.scale,
+            0,
+            100,
+            PRECALCULATED_VALUES.frequency.y.min,
+            PRECALCULATED_VALUES.frequency.y.max
+          ),
+        },
+      };
+    }, [animation?.scale, animation?.speed]);
+
   const feColorMatrixRef = useRef<SVGFEColorMatrixElement>(null);
   const hueRotateMotionValue = useMotionValue(180);
   const hueRotateAnimation = useRef<AnimationPlaybackControls | null>(null);
-  const displacementScale = animation
-    ? mapRange(animation.scale, 1, 100, 20, 100)
-    : 0;
-  const animationDuration = animation
-    ? mapRange(animation.speed, 1, 100, 1000, 50)
-    : 1;
+  const rafId = useRef<number>(0);
+
+  const updateAnimation = useCallback((value: number) => {
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+    }
+
+    rafId.current = requestAnimationFrame(() => {
+      if (feColorMatrixRef.current) {
+        feColorMatrixRef.current.setAttribute("values", String(value));
+      }
+    });
+  }, []);
+
   useEffect(() => {
-    if (feColorMatrixRef.current && animationEnabled) {
+    if (!animationEnabled || !feColorMatrixRef.current) return;
+
+    let isMounted = true;
+
+    const startAnimation = () => {
+      if (!isMounted) return;
+
       if (hueRotateAnimation.current) {
         hueRotateAnimation.current.stop();
       }
+
       hueRotateMotionValue.set(0);
+
       hueRotateAnimation.current = animate(hueRotateMotionValue, 360, {
-        duration: animationDuration / 25,
+        duration: animationDuration / 1000,
         repeat: Infinity,
         repeatType: "loop",
-        repeatDelay: 0,
         ease: "linear",
-        delay: 0,
-        onUpdate: (value: number) => {
-          if (feColorMatrixRef.current) {
-            feColorMatrixRef.current.setAttribute("values", String(value));
-          }
-        },
+        onUpdate: updateAnimation,
       });
-      return () => {
-        if (hueRotateAnimation.current) {
-          hueRotateAnimation.current.stop();
-        }
-      };
-    }
-  }, [animationEnabled, animationDuration, hueRotateMotionValue]);
+    };
+
+    const timeoutId = setTimeout(startAnimation, 16);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+      }
+
+      if (hueRotateAnimation.current) {
+        hueRotateAnimation.current.stop();
+      }
+    };
+  }, [
+    animationEnabled,
+    animationDuration,
+    hueRotateMotionValue,
+    updateAnimation,
+  ]);
+
+  const filterStyle = React.useMemo(
+    () => (animationEnabled ? `url(#${id}) blur(4px)` : "none"),
+    [animationEnabled, id]
+  );
+
+  const containerStyle = React.useMemo(
+    () => ({
+      position: "absolute" as const,
+      inset: -displacementScale,
+      filter: filterStyle,
+      transform: "translateZ(0)",
+      backfaceVisibility: "hidden" as const,
+      perspective: 1000,
+      height: "100svh",
+      willChange: animationEnabled ? "filter" : "auto",
+    }),
+    [displacementScale, filterStyle, animationEnabled]
+  );
+
+  const maskStyle = React.useMemo(
+    () => ({
+      backgroundColor: color,
+      maskImage: `url('https://framerusercontent.com/images/ceBGguIpUU8luwByxuQz79t7To.png')`,
+      maskSize: sizing === "stretch" ? "100% 100%" : "cover",
+      maskRepeat: "no-repeat" as const,
+      maskPosition: "center" as const,
+      width: "100%",
+      height: "110svh",
+      transform: "translateZ(0)",
+      backfaceVisibility: "hidden" as const,
+    }),
+    [color, sizing]
+  );
+
+  const noiseStyle = React.useMemo(
+    () =>
+      noise && noise.opacity > 0
+        ? {
+            position: "absolute" as const,
+            inset: 0,
+            backgroundImage: `url("https://framerusercontent.com/images/g0QcWrxr87K0ufOxIUFBakwYA8.png")`,
+            backgroundSize: noise.scale * 200,
+            backgroundRepeat: "repeat" as const,
+            opacity: noise.opacity / 2,
+            pointerEvents: "none" as const,
+            transform: "translateZ(0)",
+          }
+        : null,
+    [noise?.opacity, noise?.scale]
+  );
+
   return (
     <div
-      className={cn("relative overflow-hidden w-full min-h-svh", className)}
-      style={style}
+      className={cn("relative overflow-x-hidden w-full min-h-svh", className)}
+      style={{
+        ...style,
+        transform: "translateZ(0)",
+        isolation: "isolate",
+      }}
     >
-      <div
-        style={{
-          position: "absolute",
-          inset: -displacementScale,
-          filter: animationEnabled ? `url(#${id}) blur(4px)` : "none",
-        }}
-      >
+      <div style={containerStyle}>
         {animationEnabled && (
-          <svg style={{ position: "absolute" }}>
+          <svg style={{ position: "absolute", pointerEvents: "none" }}>
             <defs>
               <filter id={id}>
                 <feTurbulence
                   result="undulation"
                   numOctaves="2"
-                  baseFrequency={`${mapRange(
-                    animation.scale,
-                    0,
-                    100,
-                    0.001,
-                    0.0005
-                  )},${mapRange(animation.scale, 0, 100, 0.004, 0.002)}`}
+                  baseFrequency={`${baseFrequencies.x},${baseFrequencies.y}`}
                   seed="0"
                   type="turbulence"
                 />
@@ -155,35 +291,16 @@ export function EtheralShadow({
             </defs>
           </svg>
         )}
-        <div
-          style={{
-            backgroundColor: color,
-            maskImage: `url('https://framerusercontent.com/images/ceBGguIpUU8luwByxuQz79t7To.png')`,
-            maskSize: sizing === "stretch" ? "100% 100%" : "cover",
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        />
+        <div style={maskStyle} />
       </div>
+
       {children && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center z-10">
+        <div className="absolute w-full text-center z-10">
           {children}
         </div>
       )}
-      {noise && noise.opacity > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url("https://framerusercontent.com/images/g0QcWrxr87K0ufOxIUFBakwYA8.png")`,
-            backgroundSize: noise.scale * 200,
-            backgroundRepeat: "repeat",
-            opacity: noise.opacity / 2,
-          }}
-        />
-      )}
+
+      {noiseStyle && <div style={noiseStyle} />}
     </div>
   );
 }

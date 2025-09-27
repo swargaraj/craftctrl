@@ -13,7 +13,7 @@ export default function AuthLayout({
         noise={{ opacity: 0.8, scale: 1.2 }}
         sizing="fill"
       >
-        <div className="flex flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div className="flex flex-col items-center w-full justify-center gap-6 p-6 md:p-10">
           {children}
         </div>
       </EtheralShadow>
