@@ -6,14 +6,14 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex w-full h-[40rem] justify-center items-center">
+    <div className="flex w-full h-full justify-center items-center">
       <EtheralShadow
         color="rgba(128, 128, 128, 1)"
         animation={{ scale: 100, speed: 50 }}
         noise={{ opacity: 0.8, scale: 1.2 }}
         sizing="fill"
       >
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
+        <div className="flex flex-col items-center justify-center gap-6 p-6 md:p-10">
           {children}
         </div>
       </EtheralShadow>

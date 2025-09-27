@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource/kode-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -88,4 +89,9 @@
   ::selection {
     @apply bg-accent text-accent-foreground;
   }
+}
+
+.font-alt {
+  font-family: "Kode Mono";
+  user-select: none;
 }

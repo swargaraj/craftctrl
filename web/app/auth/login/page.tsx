@@ -14,30 +14,26 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import Image from "next/image";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
-  const searchParams = useSearchParams();
-  const [server, setServer] = useState(() => searchParams.get("server") || "");
-  const [username, setUsername] = useState(
-    () => searchParams.get("username") || ""
-  );
+  const [server, setServer] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setServer(params.get("server") || "");
+    setUsername(params.get("username") || "");
+  }, []);
+
   return (
-    <div className="flex w-full max-w-sm flex-col gap-6">
+    <div className="flex w-full max-w-sm flex-col gap-4">
       <Link
         href="/"
         className="flex items-center gap-2 self-center font-medium"
       >
-        <Image
-          src="/logo.png"
-          alt="Logo"
-          width={56}
-          height={56}
-          className="select-none"
-        />
+        <h1 className="font-alt text-3xl font-[600]">CTRL</h1>
       </Link>
       <div className="flex flex-col gap-6">
         <Card>

@@ -100,7 +100,7 @@ export function EtheralShadow({
   }, [animationEnabled, animationDuration, hueRotateMotionValue]);
   return (
     <div
-      className={cn("relative overflow-hidden w-full h-full", className)}
+      className={cn("relative overflow-hidden w-full min-h-svh", className)}
       style={style}
     >
       <div
