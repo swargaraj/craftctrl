@@ -15,6 +15,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth";
 import { useRouter } from "next/navigation";
 import { CircleAlertIcon, Loader } from "lucide-react";
+import { storage } from "@/lib/storage";
+import { AUTH_KEYS } from "@/services/auth";
 
 export default function LoginForm() {
   const [server, setServer] = useState("");
@@ -34,7 +36,9 @@ export default function LoginForm() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setServer(params.get("server") || "");
+    setServer(
+      params.get("server") || storage.getItem(AUTH_KEYS.CURRENT_NODE) || ""
+    );
     setUsername(params.get("username") || "");
   }, []);
 
@@ -114,7 +118,7 @@ export default function LoginForm() {
                     <div className="flex items-center">
                       <Label htmlFor="password">Password</Label>
                       <Link
-                        href={`/auth/forgot?server=${server}&username=${username}`}
+                        href={`/forgot?server=${server}&username=${username}`}
                         className="ml-auto text-sm text-muted-foreground hover:text-primary transition-colors"
                       >
                         Forgot your password?

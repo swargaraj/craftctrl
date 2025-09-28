@@ -1,0 +1,79 @@
+[
+  {
+    "id": 1,
+    "name": "My Server 1",
+    "software": "Vanilla 1.21.8",
+    "status": "Creating",
+    "url": "192.168.1.10"
+  },
+  {
+    "id": 2,
+    "name": "Adventure Realm",
+    "software": "Paper 1.19.8",
+    "status": "Running",
+    "url": "mc.adventurerealm.net"
+  },
+  {
+    "id": 3,
+    "name": "Block Builders",
+    "software": "Bedrock 1.20.5",
+    "status": "Running",
+    "url": "play.blockbuilders.org"
+  },
+  {
+    "id": 4,
+    "name": "Craftopia",
+    "software": "Spigot 1.18.2",
+    "status": "Error",
+    "url": "mc.craftopia.io"
+  },
+  {
+    "id": 5,
+    "name": "PixelCraft",
+    "software": "Vanilla 1.19.3",
+    "status": "Restarting",
+    "url": "play.pixelcraft.com"
+  },
+  {
+    "id": 6,
+    "name": "Redstone Kingdom",
+    "software": "Paper 1.20.1",
+    "status": "Stopping",
+    "url": "192.168.50.5"
+  },
+  {
+    "id": 7,
+    "name": "Miner’s Haven",
+    "software": "Bedrock 1.21.2",
+    "status": "Offline",
+    "url": "mine.haven.net"
+  },
+  {
+    "id": 8,
+    "name": "SkyBlock Legends",
+    "software": "Paper 1.19.4",
+    "status": "Running",
+    "url": "skyblock.legends.com"
+  },
+  {
+    "id": 9,
+    "name": "The Nether Zone",
+    "software": "Spigot 1.20.2",
+    "status": "Running",
+    "url": "nether.zone.org"
+  },
+  {
+    "id": 10,
+    "name": "Creeper World",
+    "software": "Vanilla 1.18.2",
+    "status": "Running",
+    "url": "play.creeperworld.net"
+  },
+  {
+    "id": 11,
+    "name": "Ender Realms",
+    "software": "Paper 1.21.5",
+    "status": "Running",
+    "url": "ender.realms.org"
+  }
+]

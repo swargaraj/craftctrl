@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useReducer } from "react";
 import { AuthState, AuthContextType, LoginCredentials } from "@/types/auth";
 import { authService } from "@/services/auth";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -65,6 +66,7 @@ const initialState: AuthState = {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const router = useRouter();
 
   useEffect(() => {
     initializeAuth();
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     authService.logout();
     dispatch({ type: "LOGOUT" });
+    router.push("/login");
   };
 
   const refreshToken = async () => {

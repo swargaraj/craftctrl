@@ -168,7 +168,6 @@ class AuthService {
     storage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
     storage.removeItem(AUTH_KEYS.USER_DATA);
     storage.removeItem(AUTH_KEYS.PERMISSIONS);
-    storage.removeItem(AUTH_KEYS.CURRENT_NODE);
     this.currentNode = null;
   }
 
