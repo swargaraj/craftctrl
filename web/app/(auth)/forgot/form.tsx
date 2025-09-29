@@ -10,20 +10,17 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CircleAlertIcon, CheckCircle2, Loader } from "lucide-react";
 import { useAuth } from "@/contexts/auth";
-import { useRouter } from "next/navigation";
-import { CircleAlertIcon, Loader } from "lucide-react";
 
-export default function LoginForm() {
+export default function ForgotForm() {
   const [server, setServer] = useState("");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
 
-  const { login, isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
+  const { requestPasswordReset, isLoading } = useAuth();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -34,44 +31,23 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess(false);
 
     try {
-      await login({ server, username, password });
-      router.push("/");
+      await requestPasswordReset({ server, username });
+      setSuccess(true);
     } catch (err: any) {
-      switch (err.message) {
-        case "2FA_REQUIRED":
-          router.push(`/2fa?server=${server}&username=${username}`);
-          return;
-        case "PASSWORD_CHANGE_REQUIRED":
-          setError(
-            "Please change your password before logging in. You will be redirected in 3 seconds."
-          );
-          setTimeout(() => {
-            router.push(`/forgot?server=${server}&username=${username}`);
-          }, 3000);
-          return;
-        default:
-          setError(
-            err.message || "Login failed. Please check your credentials."
-          );
-      }
+      setError(err.message || "Failed to send reset email. Please try again.");
     }
   };
-
-  if (isAuthenticated) {
-    return null;
-  }
 
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-lg font-medium">
-          Login to Your Node
-        </CardTitle>
+        <CardTitle className="text-lg font-medium">Reset Password</CardTitle>
         <CardDescription>
-          Connect to your node to manage servers, monitor performance, and
-          configure settings.
+          Enter your username to receive a password reset link and regain access
+          to your node.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -84,6 +60,14 @@ export default function LoginForm() {
               </div>
             )}
 
+            {success && (
+              <div className="bg-emerald-300/20 text-sm text-left gap-1 px-4 py-3 flex items-center rounded-md">
+                <CheckCircle2 className="w-4 h-4 mr-2 shrink-0" />
+                If the user exists, a password reset link has been sent to the
+                associated email address.
+              </div>
+            )}
+
             <div className="grid gap-6">
               <div className="grid gap-3">
                 <Label htmlFor="server">Node Address</Label>
@@ -92,8 +76,8 @@ export default function LoginForm() {
                   type="text"
                   placeholder="192.168.1.5:5575 or https://node.example"
                   required
-                  onChange={(e) => setServer(e.target.value)}
                   value={server}
+                  onChange={(e) => setServer(e.target.value)}
                 />
               </div>
               <div className="grid gap-3">
@@ -101,39 +85,20 @@ export default function LoginForm() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="bob"
+                  placeholder="username"
                   required
-                  onChange={(e) => setUsername(e.target.value)}
                   value={username}
-                />
-              </div>
-              <div className="grid gap-3">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                  <Link
-                    href={`/forgot?server=${server}&username=${username}`}
-                    className="ml-auto text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  onChange={(e) => setPassword(e.target.value)}
-                  value={password}
+                  onChange={(e) => setUsername(e.target.value)}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
-                    Processing
-                    <Loader className="animate-spin" />
+                    Sending
+                    <Loader className="animate-spin size-4" />
                   </>
                 ) : (
-                  "Login"
+                  "Send Email"
                 )}
               </Button>
             </div>

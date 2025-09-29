@@ -4,6 +4,8 @@ export interface User {
   email: string;
   isActive: boolean;
   isSuperAdmin: boolean;
+  changePassword: boolean;
+  twoFactorEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,19 +24,37 @@ export interface LoginCredentials {
 }
 
 export interface AuthState {
-  user: User | null;
+  user: any | null;
   accessToken: string | null;
   refreshToken: string | null;
-  permissions: string[];
   currentNode: string | null;
+  sessionToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
 }
 
-// @ts-ignore
-export interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>;
+export interface AuthContextType extends Omit<AuthState, "refreshToken"> {
+  login: (credentials: LoginCredentials) => Promise<any>;
+  verify2FA: (credentials: TwoFAVerificationRequest) => Promise<any>;
+  requestPasswordReset: (credentials: ForgotPasswordRequest) => Promise<void>;
+  resetPassword: (
+    token: string,
+    newPassword: string,
+    server: string
+  ) => Promise<void>;
   logout: () => void;
-  refreshToken: string | (() => Promise<void>);
+  refreshToken: () => Promise<void>;
   updateCurrentNode: (node: string) => void;
+}
+
+export interface TwoFAVerificationRequest {
+  server: string;
+  sessionToken: string;
+  totpCode: string;
+}
+
+export interface ForgotPasswordRequest {
+  server: string;
+  username: string;
 }

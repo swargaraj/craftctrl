@@ -2,14 +2,22 @@
 
 import { useAuth } from "@/contexts/auth";
 import { Loader } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoading, user, logout, accessToken } = useAuth();
+  const { isLoading, user, isInitialized } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isInitialized && !isLoading && !user) {
+      router.push("/login");
+    }
+  }, [isLoading, user, router]);
 
   if (isLoading) {
     return (
@@ -22,9 +30,9 @@ export default function DashboardLayout({
     );
   }
 
-  if (!isLoading && user) {
-    return <>{children}</>;
-  } else {
-    logout();
+  if (!user) {
+    return null;
   }
+
+  return <>{children}</>;
 }

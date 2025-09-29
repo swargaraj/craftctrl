@@ -98,9 +98,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     accessorKey: "number",
     header: () => <div className="w-full text-center">#</div>,
     cell: ({ row }) => (
-      <TableCell className="text-muted-foreground text-center">
-        {row.index + 1}
-      </TableCell>
+      <div className="text-muted-foreground text-center p-1">{row.index + 1}</div>
     ),
     enableHiding: false,
     enableSorting: false,
@@ -161,11 +159,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
     accessorKey: "url",
     header: () => <div className="w-full">Connect</div>,
-    cell: ({ row }) => (
-      <TableCell className="text-muted-foreground text-right">
-        {row.original.url}
-      </TableCell>
-    ),
+    cell: ({ row }) => <>{row.original.url}</>,
   },
   {
     id: "actions",

@@ -1,7 +1,9 @@
 "use client";
 
 import {
+    IconBell,
   IconCreditCard,
+  IconDevices,
   IconDotsVertical,
   IconLogout,
   IconNotification,
@@ -98,11 +100,11 @@ export function NavUser({
                 Account
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <IconCreditCard />
-                Billing
+                <IconDevices />
+                Sessions
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <IconNotification />
+                <IconBell />
                 Notifications
               </DropdownMenuItem>
             </DropdownMenuGroup>
