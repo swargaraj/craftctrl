@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "web"
+
+  - package-ecosystem: "npm"
+    directory: "/api"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "api"
