@@ -1,0 +1,1699 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Node API",
+    "description": "API documentation for CraftCtrl Node Server",
+    "version": "1.0.0"
+  },
+  "components": { "schemas": {} },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "User Login",
+        "tags": ["Session Management"],
+        "description": "Authenticate a user with username and password.\n\n### Flow\n1. **Basic Authentication** - Validate username/password\n2. **2FA Check** - If 2FA is enabled, returns `requires2FA: true` with `sessionToken: XXX`\n3. **Password Change** - If password change is required, returns `requiresPasswordChange: true`\n4. **Success** - Returns access tokens and user data\n\n### Validation Rules\n- `username`: Minimum 3 characters, alphanumeric only\n- `Password`: Minimum 6 characters\n",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "minLength": 3,
+                    "pattern": "^[a-zA-Z0-9]+$",
+                    "type": "string"
+                  },
+                  "password": { "minLength": 6, "type": "string" }
+                },
+                "required": ["username", "password"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "requires2FA": { "type": "boolean" },
+                        "requiresPasswordChange": { "type": "boolean" },
+                        "sessionToken": { "type": "string" },
+                        "accessToken": { "type": "string" },
+                        "refreshToken": { "type": "string" },
+                        "user": {
+                          "description": "Success (with tokens or 2FA/password change requirement)",
+                          "type": "object",
+                          "properties": {
+                            "id": { "format": "uuid", "type": "string" },
+                            "username": { "type": "string" },
+                            "email": { "format": "email", "type": "string" },
+                            "twoFactorEnabled": { "type": "boolean" },
+                            "isActive": { "type": "boolean" },
+                            "isSuperAdmin": { "type": "boolean" },
+                            "createdAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "updatedAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "email",
+                            "twoFactorEnabled",
+                            "isActive",
+                            "isSuperAdmin",
+                            "createdAt",
+                            "updatedAt"
+                          ]
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      }
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or missing headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid input or missing headers",
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials or User not found/inactive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Invalid credentials or User not found/inactive",
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "summary": "Request Password Reset",
+        "tags": ["Password Management"],
+        "description": "Initiate a password reset process for a user. A reset link will be sent to the user's email address.\n\n          \n          ",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "minLength": 3, "type": "string" },
+                  "frontend": {
+                    "description": "Frontend application identifier for reset URL",
+                    "type": "string"
+                  }
+                },
+                "required": ["username", "frontend"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "summary": "Reset Password",
+        "tags": ["Password Management"],
+        "description": "Complete the password reset process using a valid reset token.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "description": "Password reset token from email",
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "minLength": 6,
+                    "description": "New password meeting security requirements",
+                    "type": "string"
+                  }
+                },
+                "required": ["token", "newPassword"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/verify": {
+      "post": {
+        "summary": "Verify 2FA Code",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Complete the login process by verifying a 2FA code after initial authentication.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "totpCode": {
+                    "pattern": "^[0-9]{6}$",
+                    "description": "6-digit TOTP code from authenticator app",
+                    "type": "string"
+                  },
+                  "sessionToken": {
+                    "description": "Session token from initial login response",
+                    "type": "string"
+                  }
+                },
+                "required": ["totpCode", "sessionToken"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": { "type": "string" },
+                        "refreshToken": { "type": "string" },
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string" },
+                            "username": { "type": "string" },
+                            "email": { "type": "string" },
+                            "twoFactorEnabled": { "type": "boolean" },
+                            "isActive": { "type": "boolean" },
+                            "isSuperAdmin": { "type": "boolean" },
+                            "createdAt": { "type": "string" },
+                            "updatedAt": { "type": "string" }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "email",
+                            "twoFactorEnabled",
+                            "isActive",
+                            "isSuperAdmin",
+                            "createdAt",
+                            "updatedAt"
+                          ]
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        }
+                      },
+                      "required": [
+                        "accessToken",
+                        "refreshToken",
+                        "user",
+                        "permissions"
+                      ]
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  },
+                  "required": ["success", "error"]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/setup": {
+      "post": {
+        "summary": "Setup 2FA",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Generate a new 2FA secret for the authenticated user and enable 2FA.",
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "secret": {
+                          "description": "Base32 encoded secret for manual authenticator setup",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["secret"]
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/enable": {
+      "post": {
+        "summary": "Enable 2FA",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Verify and activate 2FA for the user account.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "pattern": "^[0-9]{6}$",
+                    "description": "6-digit TOTP code from authenticator app",
+                    "type": "string"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/disable": {
+      "post": {
+        "summary": "Disable 2FA",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Turn off 2FA protection for the user account.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "pattern": "^[0-9]{6}$",
+                    "description": "Current 6-digit TOTP code for verification",
+                    "type": "string"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/standalone-verify": {
+      "post": {
+        "summary": "Verify 2FA Code (Standalone)",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Verify a 2FA code for the user account.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "pattern": "^[0-9]{6}$",
+                    "description": "6-digit TOTP code to verify",
+                    "type": "string"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "valid": { "type": "boolean" }
+                  },
+                  "required": ["success", "valid"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/2fa/remove": {
+      "delete": {
+        "summary": "Remove 2FA",
+        "tags": ["Two-Factor Authentication"],
+        "description": "Completely remove 2FA configuration from user account.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "pattern": "^[0-9]{6}$",
+                    "description": "Current 6-digit TOTP code for verification",
+                    "type": "string"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Refresh Access Token",
+        "tags": ["Session Management"],
+        "description": "Obtain new access token using a valid refresh token.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "description": "Valid refresh token obtained during login",
+                    "type": "string"
+                  }
+                },
+                "required": ["refreshToken"]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": { "type": "string" },
+                        "refreshToken": { "type": "string" }
+                      },
+                      "required": ["accessToken", "refreshToken"]
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout Current Session",
+        "tags": ["Session Management"],
+        "description": "Delete the current user session.",
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/sessions": {
+      "get": {
+        "summary": "Get User Sessions",
+        "tags": ["Session Management"],
+        "description": "Retrieve list of all active sessions for the current user.",
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "description": "Session ID",
+                            "type": "string"
+                          },
+                          "userAgent": {
+                            "description": "Browser/device user agent",
+                            "type": "string"
+                          },
+                          "ipAddress": {
+                            "description": "IP address of session",
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "description": "Session creation timestamp",
+                            "type": "string"
+                          },
+                          "lastActiveAt": {
+                            "format": "date-time",
+                            "description": "Last activity timestamp",
+                            "type": "string"
+                          },
+                          "isActive": {
+                            "description": "Whether session is currently active",
+                            "type": "boolean"
+                          },
+                          "isCurrent": {
+                            "description": "Whether this is the current session",
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "createdAt",
+                          "lastActiveAt",
+                          "isActive",
+                          "isCurrent"
+                        ]
+                      }
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/sessions/{sessionId}": {
+      "delete": {
+        "summary": "Revoke Session",
+        "tags": ["Session Management"],
+        "description": "Terminate a specific user session by ID.",
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "description": "ID of the session to revoke"
+          },
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["success", "message"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Session not found",
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  },
+                  "required": ["success", "error"]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Get Current User Profile",
+        "tags": ["Session Management"],
+        "description": "Retrieve profile information and permissions for the authenticated user.",
+        "parameters": [
+          {
+            "schema": { "type": "string" },
+            "example": "Bearer TOKEN",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "description": "Bearer `<token>`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "format": "uuid",
+                              "description": "User UUID",
+                              "type": "string"
+                            },
+                            "username": {
+                              "description": "Username",
+                              "type": "string"
+                            },
+                            "email": {
+                              "format": "email",
+                              "description": "Email address",
+                              "type": "string"
+                            },
+                            "isActive": {
+                              "description": "Account active status",
+                              "type": "boolean"
+                            },
+                            "isSuperAdmin": {
+                              "description": "Super admin flag",
+                              "type": "boolean"
+                            },
+                            "createdAt": {
+                              "format": "date-time",
+                              "description": "Account creation date",
+                              "type": "string"
+                            },
+                            "updatedAt": {
+                              "format": "date-time",
+                              "description": "Last profile update",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "username",
+                            "email",
+                            "isActive",
+                            "isSuperAdmin",
+                            "createdAt",
+                            "updatedAt"
+                          ]
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "description": "User permissions/roles",
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": ["user", "permissions"]
+                    }
+                  },
+                  "required": ["success", "data"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or Invalid Token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Unauthorized" }
+                  },
+                  "description": "Missing or Invalid Token"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid or expired token"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "User not found",
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "error": { "type": "string" }
+                  },
+                  "required": ["success", "error"]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": {
+                      "type": "string",
+                      "default": "Too many requests"
+                    }
+                  },
+                  "description": "Rate limit exceeded"
+                },
+                "example": { "success": false, "message": "Too many requests" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "default": false },
+                    "message": { "type": "string", "default": "Server error" }
+                  },
+                  "description": "Internal server error"
+                },
+                "example": { "success": false, "message": "Server error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    { "url": "http://localhost:5575", "description": "Local server" },
+    { "url": "http://0.0.0.0:5575", "description": "Local server" }
+  ],
+  "tags": [
+    {
+      "name": "Session Management",
+      "description": "Endpoints for logging in, logging out, viewing active sessions, and managing session lifecycle."
+    },
+    {
+      "name": "Two-Factor Authentication",
+      "description": "Endpoints for setting up, verifying, enabling, disabling, and removing two-factor authentication for enhanced account security."
+    },
+    {
+      "name": "Password Management",
+      "description": "Endpoints for recovering, resetting, and updating user passwords securely."
+    }
+  ],
+  "x-tagGroups": [
+    {
+      "name": "Authentication",
+      "tags": [
+        "Session Management",
+        "Two-Factor Authentication",
+        "Password Management"
+      ]
+    }
+  ]
+}
