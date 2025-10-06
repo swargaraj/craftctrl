@@ -1,5 +1,19 @@
 export const defaultPermissions = [
   {
+    id: "nodes-stats",
+    name: "node:stats",
+    resource: "nodes",
+    action: "stats",
+    description: "View node statistics",
+  },
+  {
+    id: "node-logs",
+    name: "node:logs",
+    resource: "node",
+    action: "logs",
+    description: "View node logs",
+  },
+  {
     id: "user-create",
     name: "user:create",
     resource: "user",

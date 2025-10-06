@@ -12,6 +12,14 @@ export interface User {
   updatedAt: Date;
 }
 
+export type UserResponse = Omit<
+  User,
+  "passwordHash" | "twoFactorSecret" | "createdAt" | "updatedAt"
+> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
 export interface UserSession {
   id: string;
   userId: string;
@@ -115,7 +123,7 @@ export interface RefreshTokenPayload {
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
-  user: Omit<User, "passwordHash" | "twoFactorSecret">;
+  user: UserResponse;
   permissions: string[];
 }
 
@@ -143,7 +151,7 @@ export interface Setup2FAResponse {
 export interface LoginResponse {
   requires2FA?: boolean;
   requiresPasswordChange?: boolean;
-  sessionToken: string;
+  sessionToken?: string;
 }
 
 export interface MagicLinkRequest {
@@ -175,4 +183,22 @@ export interface Notification {
   isRead: boolean;
   createdAt: Date;
   readAt?: Date;
+}
+
+export interface ListUsersOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+export interface ListUsersResult {
+  data: User[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
 }

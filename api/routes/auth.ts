@@ -3,29 +3,41 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
 
 import { requireAuth } from "../middlewares/auth";
-import type {
-  AuthResponse,
-  LoginRequest,
-  Verify2FARequest,
-} from "../types/user";
+import type { LoginRequest, Verify2FARequest } from "../types/user";
 
 import { authService } from "../services/auth";
 import { databaseService } from "../services/database";
 import { twoFactorService } from "../services/twoFactorService";
+import { AppError, errorSchema, schemaHeaders } from "../middlewares/error";
 import { sanitizeUser } from "../lib/utils";
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const server = fastify.withTypeProvider<TypeBoxTypeProvider>();
 
   server.post(
-    "/auth/login",
+    "/login",
     {
       schema: {
+        tags: ["Session Management"],
+        summary: "User Login",
+        description: `Authenticate a user with username and password.
+
+### Flow
+1. **Basic Authentication** - Validate username/password
+2. **2FA Check** - If 2FA is enabled, returns \`requires2FA: true\` with \`sessionToken: XXX\`
+3. **Password Change** - If password change is required, returns \`requiresPasswordChange: true\`
+4. **Success** - Returns access tokens and user data
+
+### Validation Rules
+- \`username\`: Minimum 3 characters, alphanumeric only
+- \`Password\`: Minimum 6 characters
+`,
         body: Type.Object({
-          username: Type.String(),
-          password: Type.String(),
+          username: Type.String({ minLength: 3, pattern: "^[a-zA-Z0-9]+$" }),
+          password: Type.String({ minLength: 6 }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
@@ -35,30 +47,54 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
               accessToken: Type.Optional(Type.String()),
               refreshToken: Type.Optional(Type.String()),
               user: Type.Optional(
-                Type.Object({
-                  id: Type.String(),
-                  username: Type.String(),
-                  email: Type.String(),
-                  twoFactorEnabled: Type.Boolean(),
-                  isActive: Type.Boolean(),
-                  isSuperAdmin: Type.Boolean(),
-                  createdAt: Type.String(),
-                  updatedAt: Type.String(),
-                })
+                Type.Object(
+                  {
+                    id: Type.String({ format: "uuid" }),
+                    username: Type.String(),
+                    email: Type.String({ format: "email" }),
+                    twoFactorEnabled: Type.Boolean(),
+                    isActive: Type.Boolean(),
+                    isSuperAdmin: Type.Boolean(),
+                    createdAt: Type.String({ format: "date-time" }),
+                    updatedAt: Type.String({ format: "date-time" }),
+                  },
+                  {
+                    description:
+                      "Success (with tokens or 2FA/password change requirement)",
+                  }
+                )
               ),
               permissions: Type.Optional(Type.Array(Type.String())),
             }),
           }),
-          401: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          400: Type.Object(
+            {
+              success: Type.Boolean(),
+              message: Type.String(),
+            },
+            {
+              description: "Invalid input or missing headers",
+            }
+          ),
+          401: Type.Object(
+            {
+              success: Type.Boolean(),
+              message: Type.String(),
+            },
+            {
+              description: "Invalid credentials or User not found/inactive",
+            }
+          ),
         },
       },
     },
     async (request) => {
       const userAgent = request.headers["user-agent"];
       const ipAddress = request.ip;
+
+      if (!userAgent || !ipAddress) {
+        throw new AppError("User agent and IP address are required", 400);
+      }
 
       const result = await authService.login(
         request.body as LoginRequest,
@@ -76,33 +112,53 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           },
         };
       } else {
-        const authResult = result as AuthResponse;
-
         return {
           success: true,
-          data: authResult,
+          data: result,
         };
       }
     }
   );
 
   server.post(
-    "/auth/forgot-password",
+    "/forgot-password",
     {
       schema: {
+        tags: ["Password Management"],
+        summary: "Request Password Reset",
+        description: `Initiate a password reset process for a user. A reset link will be sent to the user's email address.
+
+          
+          `,
         body: Type.Object({
-          username: Type.String(),
+          username: Type.String({ minLength: 3 }),
+          frontend: Type.String({
+            description: "Frontend application identifier for reset URL",
+          }),
         }),
         response: {
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
+          ...errorSchema,
         },
       },
     },
     async (request) => {
-      await authService.requestPasswordReset(request.body.username!);
+      const userAgent = request.headers["user-agent"];
+      const ipAddress = request.ip;
+
+      if (!userAgent || !ipAddress) {
+        throw new AppError("User agent and IP address are required", 400);
+      }
+
+      await authService.requestPasswordReset(
+        request.body.username!,
+        request.body.frontend!,
+        userAgent,
+        ipAddress
+      );
 
       return {
         success: true,
@@ -112,22 +168,28 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/reset-password",
+    "/reset-password",
     {
       schema: {
+        tags: ["Password Management"],
+        summary: "Reset Password",
+        description:
+          "Complete the password reset process using a valid reset token.",
         body: Type.Object({
-          token: Type.String(),
-          newPassword: Type.String({ minLength: 6 }),
+          token: Type.String({
+            description: "Password reset token from email",
+          }),
+          newPassword: Type.String({
+            minLength: 6,
+            description: "New password meeting security requirements",
+          }),
         }),
         response: {
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
-          400: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          ...errorSchema,
         },
       },
     },
@@ -145,14 +207,24 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/2fa/verify",
+    "/2fa/verify",
     {
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Verify 2FA Code",
+        description:
+          "Complete the login process by verifying a 2FA code after initial authentication.",
         body: Type.Object({
-          totpCode: Type.String(),
-          sessionToken: Type.String(),
+          totpCode: Type.String({
+            pattern: "^[0-9]{6}$",
+            description: "6-digit TOTP code from authenticator app",
+          }),
+          sessionToken: Type.String({
+            description: "Session token from initial login response",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
@@ -176,11 +248,16 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             error: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
       const userAgent = request.headers["user-agent"];
       const ipAddress = request.ip;
+
+      if (!userAgent || !ipAddress) {
+        throw new AppError("User agent and IP address are required", 400);
+      }
 
       const authData = await authService.verify2FA(
         request.body as Verify2FARequest,
@@ -196,18 +273,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/2fa/setup",
+    "/2fa/setup",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Setup 2FA",
+        description:
+          "Generate a new 2FA secret for the authenticated user and enable 2FA.",
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
-              secret: Type.String(),
+              secret: Type.String({
+                description:
+                  "Base32 encoded secret for manual authenticator setup",
+              }),
             }),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -220,19 +306,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/2fa/enable",
+    "/2fa/enable",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Enable 2FA",
+        description: "Verify and activate 2FA for the user account.",
         body: Type.Object({
-          code: Type.String(),
+          code: Type.String({
+            pattern: "^[0-9]{6}$",
+            description: "6-digit TOTP code from authenticator app",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -248,19 +342,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/2fa/disable",
+    "/2fa/disable",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Disable 2FA",
+        description: "Turn off 2FA protection for the user account.",
         body: Type.Object({
-          code: Type.String(),
+          code: Type.String({
+            pattern: "^[0-9]{6}$",
+            description: "Current 6-digit TOTP code for verification",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -276,19 +378,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/2fa/standalone-verify",
+    "/2fa/standalone-verify",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Verify 2FA Code (Standalone)",
+        description: "Verify a 2FA code for the user account.",
         body: Type.Object({
-          code: Type.String(),
+          code: Type.String({
+            pattern: "^[0-9]{6}$",
+            description: "6-digit TOTP code to verify",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             valid: Type.Boolean(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -304,19 +414,27 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.delete(
-    "/auth/2fa/remove",
+    "/2fa/remove",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Two-Factor Authentication"],
+        summary: "Remove 2FA",
+        description: "Completely remove 2FA configuration from user account.",
         body: Type.Object({
-          code: Type.String(),
+          code: Type.String({
+            pattern: "^[0-9]{6}$",
+            description: "Current 6-digit TOTP code for verification",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -332,13 +450,19 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/refresh",
+    "/refresh",
     {
       schema: {
+        tags: ["Session Management"],
+        summary: "Refresh Access Token",
+        description: "Obtain new access token using a valid refresh token.",
         body: Type.Object({
-          refreshToken: Type.String(),
+          refreshToken: Type.String({
+            description: "Valid refresh token obtained during login",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
@@ -346,11 +470,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
               refreshToken: Type.String(),
             }),
           }),
-          401: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -364,16 +485,21 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.post(
-    "/auth/logout",
+    "/logout",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Session Management"],
+        summary: "Logout Current Session",
+        description: "Delete the current user session.",
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -387,53 +513,47 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  server.post(
-    "/auth/logout-all",
-    {
-      preHandler: requireAuth(),
-      schema: {
-        response: {
-          200: Type.Object({
-            success: Type.Boolean(),
-            message: Type.String(),
-          }),
-        },
-      },
-    },
-    async (request) => {
-      await authService.logoutAllSessions(
-        request.user!.userId,
-        request.user!.sessionId
-      );
-
-      return {
-        success: true,
-        message: "All other sessions logged out successfully",
-      };
-    }
-  );
-
   server.get(
-    "/auth/sessions",
+    "/sessions",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Session Management"],
+        summary: "Get User Sessions",
+        description:
+          "Retrieve list of all active sessions for the current user.",
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Array(
               Type.Object({
-                id: Type.String(),
-                userAgent: Type.Optional(Type.String()),
-                ipAddress: Type.Optional(Type.String()),
-                createdAt: Type.String(),
-                lastActiveAt: Type.String(),
-                isActive: Type.Boolean(),
-                isCurrent: Type.Boolean(),
+                id: Type.String({ description: "Session ID" }),
+                userAgent: Type.Optional(
+                  Type.String({ description: "Browser/device user agent" })
+                ),
+                ipAddress: Type.Optional(
+                  Type.String({ description: "IP address of session" })
+                ),
+                createdAt: Type.String({
+                  format: "date-time",
+                  description: "Session creation timestamp",
+                }),
+                lastActiveAt: Type.String({
+                  format: "date-time",
+                  description: "Last activity timestamp",
+                }),
+                isActive: Type.Boolean({
+                  description: "Whether session is currently active",
+                }),
+                isCurrent: Type.Boolean({
+                  description: "Whether this is the current session",
+                }),
               })
             ),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -457,27 +577,33 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.delete(
-    "/auth/sessions/:sessionId",
+    "/sessions/:sessionId",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Session Management"],
+        summary: "Revoke Session",
+        description: "Terminate a specific user session by ID.",
         params: Type.Object({
-          sessionId: Type.String(),
+          sessionId: Type.String({
+            description: "ID of the session to revoke",
+          }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
-          404: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
-          400: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          404: Type.Object(
+            {
+              success: Type.Boolean(),
+              error: Type.String(),
+            },
+            { description: "Session not found" }
+          ),
         },
+        headers: schemaHeaders,
       },
     },
     async (request, reply) => {
@@ -508,31 +634,53 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   server.get(
-    "/auth/me",
+    "/me",
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Session Management"],
+        summary: "Get Current User Profile",
+        description:
+          "Retrieve profile information and permissions for the authenticated user.",
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
               user: Type.Object({
-                id: Type.String(),
-                username: Type.String(),
-                email: Type.String(),
-                isActive: Type.Boolean(),
-                isSuperAdmin: Type.Boolean(),
-                createdAt: Type.String(),
-                updatedAt: Type.String(),
+                id: Type.String({ format: "uuid", description: "User UUID" }),
+                username: Type.String({ description: "Username" }),
+                email: Type.String({
+                  format: "email",
+                  description: "Email address",
+                }),
+                isActive: Type.Boolean({
+                  description: "Account active status",
+                }),
+                isSuperAdmin: Type.Boolean({ description: "Super admin flag" }),
+                createdAt: Type.String({
+                  format: "date-time",
+                  description: "Account creation date",
+                }),
+                updatedAt: Type.String({
+                  format: "date-time",
+                  description: "Last profile update",
+                }),
               }),
-              permissions: Type.Array(Type.String()),
+              permissions: Type.Array(
+                Type.String({ description: "User permissions/roles" })
+              ),
             }),
           }),
-          404: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          404: Type.Object(
+            {
+              success: Type.Boolean(),
+              error: Type.String(),
+            },
+            { description: "User not found" }
+          ),
         },
+        headers: schemaHeaders,
       },
     },
     async (request, reply) => {

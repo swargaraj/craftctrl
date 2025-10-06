@@ -37,13 +37,21 @@ export class SessionService extends BaseDatabaseService {
     return stmt.get(sessionId) as any;
   }
 
-  async updateSessionActivity(sessionId: string): Promise<void> {
+  async updateSessionActivity(
+    sessionId: string,
+    userAgent: string,
+    ipAddress: string
+  ): Promise<void> {
     const stmt = this.db.prepare(`
-      UPDATE user_sessions 
-      SET last_active_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `);
-    stmt.run(sessionId);
+    UPDATE user_sessions
+    SET 
+      last_active_at = CURRENT_TIMESTAMP,
+      user_agent = ?,
+      ip_address = ?
+    WHERE id = ?
+  `);
+
+    stmt.run(userAgent, ipAddress, sessionId);
   }
 
   async updateSession(sessionId: string, refreshToken: string): Promise<void> {

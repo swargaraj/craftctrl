@@ -1,7 +1,8 @@
 import { Database } from "bun:sqlite";
 import { BaseDatabaseService } from "./base";
-import type { User } from "../../types/user";
+import type { ListUsersOptions, ListUsersResult, User } from "../../types/user";
 import { camelToSnake } from "../../lib/utils";
+import { AppError } from "../../middlewares/error";
 
 export class UserService extends BaseDatabaseService {
   constructor(db: Database) {
@@ -19,9 +20,9 @@ export class UserService extends BaseDatabaseService {
     const existingUser = existing.get(userData.username, userData.email) as any;
 
     if (existingUser) {
-      throw new Error("Username or email already exists");
+      throw new AppError("Username or email already exists", 409);
     }
-    
+
     const stmt = this.db.prepare(`
       INSERT INTO users (id, username, email, password_hash, is_super_admin, is_active, change_password)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -35,13 +36,13 @@ export class UserService extends BaseDatabaseService {
       userData.username,
       userData.email,
       userData.passwordHash,
-      userData.isSuperAdmin || false,
+      false,
       userData.isActive !== false,
-      userData.changePassword || true
+      userData.changePassword || false
     );
 
     if (result.changes === 0) {
-      throw new Error("Failed to create user");
+      throw new AppError("Failed to create user", 500);
     }
 
     return {
@@ -101,7 +102,7 @@ export class UserService extends BaseDatabaseService {
   async deleteUser(id: string): Promise<boolean> {
     const user = await this.getUserById(id);
     if (user?.isSuperAdmin) {
-      throw new Error("Cannot delete super admin user");
+      throw new AppError("Cannot delete super admin user", 403);
     }
 
     const stmt = this.db.prepare("DELETE FROM users WHERE id = ?");
@@ -109,12 +110,47 @@ export class UserService extends BaseDatabaseService {
     return result.changes > 0;
   }
 
-  async listUsers(): Promise<User[]> {
-    const stmt = this.db.prepare(
-      "SELECT * FROM users ORDER BY created_at DESC"
+  async listUsers(options: ListUsersOptions = {}): Promise<ListUsersResult> {
+    const { page = 1, limit = 20, search } = options;
+    const offset = (page - 1) * limit;
+
+    let whereClause = "";
+    let params: any[] = [];
+
+    if (search) {
+      whereClause = "WHERE username LIKE ? OR email LIKE ?";
+      const searchTerm = `%${search}%`;
+      params = [searchTerm, searchTerm];
+    }
+
+    const countStmt = this.db.prepare(
+      `SELECT COUNT(*) as total FROM users ${whereClause}`
     );
-    const rows = stmt.all() as any[];
-    return rows.map((row) => this.mapRowToUser(row));
+    const countResult = countStmt.get(...params) as { total: number };
+    const total = countResult.total;
+    const totalPages = Math.ceil(total / limit);
+
+    const stmt = this.db.prepare(`
+    SELECT * FROM users 
+    ${whereClause}
+    ORDER BY created_at DESC 
+    LIMIT ? OFFSET ?
+  `);
+
+    const rows = stmt.all(...params, limit, offset) as any[];
+    const data = rows.map((row) => this.mapRowToUser(row));
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   }
 
   private mapRowToUser(row: any): User {

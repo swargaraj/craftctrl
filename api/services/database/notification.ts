@@ -12,15 +12,16 @@ export class NotificationService extends BaseDatabaseService {
     userId: string,
     title: string,
     message: string,
+    source?: string,
     type: "info" | "warning" | "error" | "success" = "info"
   ): Promise<string> {
     const id = crypto.randomUUID();
     const stmt = this.db.prepare(`
-      INSERT INTO notifications (id, user_id, title, message, type)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO notifications (id, user_id, title, message, type, source)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(id, userId, title, message, type);
+    stmt.run(id, userId, title, message, type, source ?? null);
     return id;
   }
 
@@ -109,5 +110,12 @@ export class NotificationService extends BaseDatabaseService {
 
     const result = stmt.run(notificationId, userId);
     return result.changes > 0;
+  }
+
+  async deleteAllNotifications(userId: string): Promise<void> {
+    const stmt = this.db.prepare(`
+      DELETE FROM notifications WHERE user_id = ?
+    `);
+    stmt.run(userId);
   }
 }

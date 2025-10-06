@@ -6,7 +6,7 @@ import { NotificationService } from "./notification";
 import { PermissionService } from "./permission";
 
 import { config } from "../../config";
-import { logger } from "../../utils/logger";
+import { logger } from "../../lib/logger";
 import { indexes, mantainance, tables } from "../../lib/sql";
 import { defaultPermissions } from "../../lib/perm";
 import { ResetPasswordService } from "./reset-password";
@@ -109,12 +109,10 @@ export class DatabaseService extends BaseDatabaseService {
 
       import("bcryptjs")
         .then((bcrypt) => {
-          const hashedPassword = bcrypt.hashSync(
-            "admin123",
-            config.BCRYPT_ROUNDS
-          );
+          const hashedPassword = bcrypt.hashSync("admin123", 12);
+          const adminUUid = crypto.randomUUID();
           const adminResult = adminUserStmt.run(
-            crypto.randomUUID(),
+            adminUUid,
             "admin",
             "admin@email.com",
             hashedPassword,

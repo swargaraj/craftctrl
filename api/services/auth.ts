@@ -1,11 +1,12 @@
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
 import { config } from "../config";
 import { databaseService } from "./database";
 import type {
   User,
   AuthResponse,
   LoginRequest,
-  RegisterRequest,
   AccessTokenPayload,
   RefreshTokenPayload,
   UserSession,
@@ -14,7 +15,7 @@ import type {
 } from "../types/user";
 import { AppError } from "../middlewares/error";
 import { twoFactorService } from "./twoFactorService";
-import bcrypt from "bcryptjs";
+import { sanitizeUser } from "../lib/utils";
 
 export class AuthService {
   async login(
@@ -26,15 +27,20 @@ export class AuthService {
       credentials.username
     );
 
-    if (!user?.isActive) {
-      throw new AppError("User not found or inactive", 401);
-    }
-
     if (!user) {
       throw new AppError("Invalid credentials", 401);
     }
 
-    const bcrypt = require("bcryptjs");
+    if (!user?.isActive) {
+      throw new AppError("User not found or inactive", 401);
+    }
+
+    if (user.changePassword) {
+      return {
+        requiresPasswordChange: true,
+      };
+    }
+
     const isValidPassword = await bcrypt.compare(
       credentials.password,
       user.passwordHash
@@ -42,20 +48,6 @@ export class AuthService {
 
     if (!isValidPassword) {
       throw new AppError("Invalid credentials", 401);
-    }
-
-    if (user.changePassword) {
-      const sessionToken = await authService.requestPasswordReset(
-        user.username!
-      );
-      if (!sessionToken) {
-        throw new AppError("Failed to request password reset", 500);
-      }
-
-      return {
-        requiresPasswordChange: true,
-        sessionToken,
-      };
     }
 
     if (user.twoFactorEnabled) {
@@ -141,7 +133,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: newRefreshToken,
-      user: user,
+      user: sanitizeUser(user),
       permissions,
     };
   }
@@ -205,14 +197,30 @@ export class AuthService {
       throw new AppError("Invalid refresh token", 401);
     }
   }
-  async requestPasswordReset(username: string): Promise<void | string> {
+  async requestPasswordReset(
+    username: string,
+    frontend: string,
+    userAgent: string,
+    ipAddress: string
+  ): Promise<void | string> {
     const user = await databaseService.users.getUserByUsername(username);
     if (!user || !user.isActive) {
       return;
     }
 
+    const canSend = await databaseService.recovery.canSendResetEmail(user.id);
+    if (!canSend) {
+      throw new AppError(
+        "Please wait 5 minutes before requesting another reset email",
+        429
+      );
+    }
+
     const token = await databaseService.recovery.createPasswordResetToken(
-      user.id
+      user,
+      frontend,
+      userAgent,
+      ipAddress
     );
 
     return token;
@@ -226,10 +234,7 @@ export class AuthService {
       throw new AppError("Invalid or expired reset token", 400);
     }
 
-    const newPasswordHash = await bcrypt.hash(
-      newPassword,
-      config.BCRYPT_ROUNDS
-    );
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
     await databaseService.users.updateUser(resetToken.user_id, {
       passwordHash: newPasswordHash,
@@ -237,12 +242,15 @@ export class AuthService {
     });
 
     await databaseService.recovery.markPasswordResetTokenUsed(token);
+    await databaseService.recovery.deleteAllPasswordResetTokens(
+      resetToken.user_id
+    );
     await databaseService.sessions.deleteAllUserSessions(resetToken.user_id);
   }
 
   async forcePasswordChange(userId: string): Promise<void> {
     await databaseService.users.updateUser(userId, {
-      changePassword: true,
+      changePassword: false,
     });
 
     await databaseService.sessions.deleteAllUserSessions(userId);
@@ -250,10 +258,6 @@ export class AuthService {
 
   async logout(sessionId: string): Promise<void> {
     await databaseService.sessions.deleteSession(sessionId);
-  }
-
-  async logoutAllSessions(userId: string, sessionId?: string): Promise<void> {
-    await databaseService.sessions.deleteAllUserSessions(userId, sessionId);
   }
 
   async getUserSessions(userId: string): Promise<UserSession[]> {

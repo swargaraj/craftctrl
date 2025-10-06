@@ -4,7 +4,7 @@ import { Type } from "@sinclair/typebox";
 
 import { databaseService } from "../services/database";
 import { requireAuth } from "../middlewares/auth";
-import { AppError } from "../middlewares/error";
+import { AppError, errorSchema, schemaHeaders } from "../middlewares/error";
 
 const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   const server = fastify.withTypeProvider<TypeBoxTypeProvider>();
@@ -14,6 +14,10 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Notification"],
+        summary: "Get User Notifications",
+        description:
+          "Retrieve paginated notifications for the authenticated user.",
         querystring: Type.Object({
           page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
           limit: Type.Optional(
@@ -23,12 +27,13 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
           unreadCount: Type.Optional(Type.Boolean({ default: false })),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             data: Type.Object({
               notifications: Type.Array(
                 Type.Object({
-                  id: Type.String(),
+                  id: Type.String({ format: "uuid" }),
                   title: Type.String(),
                   message: Type.String(),
                   type: Type.Union([
@@ -38,8 +43,8 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
                     Type.Literal("success"),
                   ]),
                   isRead: Type.Boolean(),
-                  createdAt: Type.String(),
-                  readAt: Type.Optional(Type.String()),
+                  createdAt: Type.String({ format: "date-time" }),
+                  readAt: Type.Optional(Type.String({ format: "date-time" })),
                 })
               ),
               pagination: Type.Object({
@@ -51,6 +56,7 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
             }),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -94,19 +100,30 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Notification"],
+        summary: "Mark Notification as Read",
+        description:
+          "Mark a specific notification as read for the authenticated user.",
         params: Type.Object({
-          id: Type.String(),
+          id: Type.String({ format: "uuid", description: "Notification ID" }),
         }),
         response: {
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
-          404: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          ...errorSchema,
+          404: Type.Object(
+            {
+              success: Type.Boolean(),
+              error: Type.String(),
+            },
+            {
+              description: "Notification not found",
+            }
+          ),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -133,12 +150,18 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Notification"],
+        summary: "Mark All Notifications as Read",
+        description:
+          "Mark all unread notifications as read for the authenticated user.",
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {
@@ -158,19 +181,30 @@ const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     {
       preHandler: requireAuth(),
       schema: {
+        tags: ["Notification"],
+        summary: "Delete Notification",
+        description:
+          "Permanently delete a specific notification for the authenticated user.",
         params: Type.Object({
-          id: Type.String(),
+          id: Type.String({ format: "uuid", description: "Notification ID" }),
         }),
         response: {
+          ...errorSchema,
           200: Type.Object({
             success: Type.Boolean(),
             message: Type.String(),
           }),
-          404: Type.Object({
-            success: Type.Boolean(),
-            error: Type.String(),
-          }),
+          404: Type.Object(
+            {
+              success: Type.Boolean(),
+              error: Type.String(),
+            },
+            {
+              description: "Notification not found",
+            }
+          ),
         },
+        headers: schemaHeaders,
       },
     },
     async (request) => {

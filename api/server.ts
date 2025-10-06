@@ -7,8 +7,6 @@ import fastifyHelmet from "@fastify/helmet";
 import fastifyRateLimit from "@fastify/rate-limit";
 
 import { config } from "./config";
-import { logger, requestLogger } from "./utils/logger";
-import { databaseService } from "./services/database";
 
 import { authenticate } from "./middlewares/auth";
 import { errorHandler } from "./middlewares/error";
@@ -16,7 +14,9 @@ import { errorHandler } from "./middlewares/error";
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
 import notificationRoutes from "./routes/notifications";
-// import serverRoutes from "./routes/servers";
+
+import swagger from "@fastify/swagger";
+import { openapiConfig } from "./lib/openapi";
 
 export async function buildServer(
   opts: FastifyServerOptions = {}
@@ -32,21 +32,11 @@ export async function buildServer(
     ...opts,
   });
 
-  if (config.NODE_ENV === "production") {
-    fastify.addHook("onRequest", async (request, reply) => {
-      requestLogger.info({
-        ip: request.ip,
-        method: request.method,
-        url: request.url,
-        headers: request.headers,
-        body: request.body,
-      });
-    });
-  }
-
   await fastify.register(fastifyHelmet, {
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    xPoweredBy: false,
+    xFrameOptions: { action: "sameorigin" },
   });
 
   const origins = (() => {
@@ -61,45 +51,36 @@ export async function buildServer(
 
   await fastify.register(fastifyCors, {
     origin: origins,
-    credentials: true,
+    credentials: !(config.CORS_ORIGIN === "*"),
   });
 
   await fastify.register(fastifyRateLimit, {
     max: config.RATE_LIMIT_MAX || 100,
     timeWindow: config.RATE_LIMIT_TIME_WINDOW || "1 minute",
+    logLevel: "silent",
+    global: true,
   });
 
   fastify.setErrorHandler(errorHandler);
 
+  await fastify.register(swagger, {
+    openapi: openapiConfig,
+  });
+
   fastify.register(authenticate);
 
-  fastify.register(authRoutes, { prefix: config.API_PREFIX });
-  fastify.register(userRoutes, { prefix: config.API_PREFIX });
-  fastify.register(notificationRoutes, { prefix: config.API_PREFIX });
-//   fastify.register(serverRoutes, { prefix: config.API_PREFIX });
-
-  return fastify;
-}
-
-export async function startServer() {
-  const server = await buildServer();
-
-  await server.listen({
-    port: config.PORT,
-    host: config.HOST,
-  });
-
-  logger.info(`Server started on ${config.HOST}:${config.PORT}`);
-
-  const signals = ["SIGINT", "SIGTERM"];
-  signals.forEach((signal) => {
-    process.on(signal, async () => {
-      logger.info(`Received ${signal}, shutting down gracefully`);
-      await server.close();
-      databaseService.close();
-      process.exit(0);
+  fastify.register(authRoutes, { prefix: config.API_PREFIX + "/auth" });
+    fastify.register(userRoutes, { prefix: config.API_PREFIX + "/users" });
+    fastify.register(notificationRoutes, {
+      prefix: config.API_PREFIX + "/notifications",
     });
-  });
 
-  return server;
+  fastify.get("/openapi", {
+    schema: {
+      hide: true,
+    },
+    handler: async () => fastify.swagger(),
+  });
+  
+  return fastify;
 }

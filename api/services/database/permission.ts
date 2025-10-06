@@ -9,6 +9,20 @@ export class PermissionService extends BaseDatabaseService {
   }
 
   async getUserPermissions(userId: string): Promise<string[]> {
+    const userStmt = this.db.prepare(`
+        SELECT is_super_admin FROM users WHERE id = ?
+    `);
+
+    const user = userStmt.get(userId) as
+      | { is_super_admin: boolean }
+      | undefined;
+
+    if (user?.is_super_admin) {
+      const allPermsStmt = this.db.prepare(`SELECT name FROM permissions`);
+      const allPermissions = allPermsStmt.all() as { name: string }[];
+      return allPermissions.map((p) => p.name);
+    }
+
     const rolePermStmt = this.db.prepare(`
       SELECT p.name 
       FROM permissions p

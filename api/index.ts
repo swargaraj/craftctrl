@@ -1,13 +1,16 @@
-import { startServer } from "./server";
-import { logger } from "./utils/logger";
+import { config } from "./config";
+import { buildServer } from "./server";
+import { logger } from "./lib/logger";
 
-(async () => {
-  try {
-    await startServer();
-  } catch (error) {
-    logger.error("Failed to start server:", error);
-    logger.end();
-    await new Promise((resolve) => logger.on("finish", resolve));
-    process.exit(1);
-  }
-})();
+const server = await buildServer();
+
+try {
+  await server.listen({
+    port: config.PORT,
+    host: config.HOST,
+  });
+
+  logger.info(`Server started on ${config.HOST}:${config.PORT}`);
+} catch (error) {
+  logger.error("Failed to start server", { error });
+}
